@@ -19,18 +19,18 @@ export default function LoginPage() {
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ email, password }),
     });
 
     setLoading(false);
 
     if (!res.ok) {
-      const data = await res.json();
-      setError(data.error || "Login failed");
-      return;
+        const data = await res.json();
+        setError(data.error || "Login failed");
+        return;
     }
-
-    router.push("/chat");
+    window.location.href = "/chat";
   };
 
   return (

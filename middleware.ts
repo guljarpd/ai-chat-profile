@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth/jwt";
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // ✅ DO NOT TOUCH API ROUTES
+  // Never touch API routes
   if (pathname.startsWith("/api")) {
     return NextResponse.next();
   }
@@ -20,12 +19,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  try {
-    verifyToken(token);
-    return NextResponse.next();
-  } catch {
-    return NextResponse.redirect(new URL("/login", req.url));
-  }
+  return NextResponse.next();
 }
 
 export const config = {
