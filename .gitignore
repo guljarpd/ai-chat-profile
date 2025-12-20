@@ -1,0 +1,72 @@
+# ===============================
+# Dependencies
+# ===============================
+node_modules/
+.pnp/
+.pnp.js
+
+# ===============================
+# Build outputs
+# ===============================
+.next/
+out/
+dist/
+build/
+
+# ===============================
+# Environment variables (CRITICAL)
+# ===============================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ===============================
+# Logs
+# ===============================
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ===============================
+# Database
+# ===============================
+*.sqlite
+*.sqlite3
+mysql-data/
+db-data/
+
+# ===============================
+# Testing / Coverage
+# ===============================
+coverage/
+.vitest/
+.playwright/
+
+# ===============================
+# Cache / Temp
+# ===============================
+.cache/
+.tmp/
+temp/
+
+# ===============================
+# OS / Editor
+# ===============================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ===============================
+# Next.js runtime
+# ===============================
+next-env.d.ts
+
+# ===============================
+# Misc
+# ===============================
+*.log
+*.pid
