@@ -1,5 +1,4 @@
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 
 type Props = {
   role: "user" | "assistant";
@@ -19,39 +18,26 @@ export default function ChatBubble({ role, content }: Props) {
     >
       <div
         style={{
-          maxWidth: "68%",
+          maxWidth: "80%",
+          background: isUser ? "#2563eb" : "#f1f5f9",
+          color: isUser ? "#fff" : "#0f172a",
           padding: "10px 14px",
-          borderRadius: isUser
-            ? "14px 14px 4px 14px" // user bubble tail
-            : "14px 14px 14px 4px", // assistant bubble tail
-          backgroundColor: isUser ? "#2563eb" : "#f1f5f9",
-          color: isUser ? "#ffffff" : "#0f172a",
+          borderRadius: "14px",
+          whiteSpace: "pre-wrap",
           fontSize: "14px",
           lineHeight: 1.5,
-          wordBreak: "break-word",
-          boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
         }}
       >
         <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
           components={{
             p({ children }) {
               return <p style={{ margin: 0 }}>{children}</p>;
             },
-            code({ inline, children }) {
-              return inline ? (
-                <code
-                  style={{
-                    background: "#e2e8f0",
-                    padding: "2px 6px",
-                    borderRadius: "4px",
-                    fontSize: "13px",
-                    color: "#0f172a",
-                  }}
-                >
-                  {children}
-                </code>
-              ) : (
+
+            code({ className, children }) {
+              const isBlock = className?.includes("language-");
+
+              return isBlock ? (
                 <pre
                   style={{
                     background: "#0f172a",
@@ -59,12 +45,22 @@ export default function ChatBubble({ role, content }: Props) {
                     padding: "12px",
                     borderRadius: "8px",
                     overflowX: "auto",
-                    fontSize: "13px",
                     marginTop: "8px",
                   }}
                 >
                   <code>{children}</code>
                 </pre>
+              ) : (
+                <code
+                  style={{
+                    background: isUser ? "rgba(255,255,255,0.2)" : "#e5e7eb",
+                    padding: "2px 6px",
+                    borderRadius: "6px",
+                    fontSize: "13px",
+                  }}
+                >
+                  {children}
+                </code>
               );
             },
           }}

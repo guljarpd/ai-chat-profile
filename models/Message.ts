@@ -1,9 +1,43 @@
-import { DataTypes, Model } from "sequelize";
+import { DataTypes, Model, Optional } from "sequelize";
 import { sequelize } from "@/lib/db";
 import { Chat } from "./Chat";
 
-export class Message extends Model {}
+/* ------------------------------------------------------------------ */
+/* 1️⃣ Type definitions                                               */
+/* ------------------------------------------------------------------ */
+interface MessageAttributes {
+  id: string;
+  chatId: string;
+  role: "user" | "assistant";
+  content: string;
+  createdDate?: Date;
+  updatedDate?: Date;
+}
 
+interface MessageCreationAttributes
+  extends Optional<
+    MessageAttributes,
+    "id" | "createdDate" | "updatedDate"
+  > {}
+
+/* ------------------------------------------------------------------ */
+/* 2️⃣ Typed Model                                                    */
+/* ------------------------------------------------------------------ */
+export class Message
+  extends Model<MessageAttributes, MessageCreationAttributes>
+  implements MessageAttributes
+{
+  declare id: string;
+  declare chatId: string;
+  declare role: "user" | "assistant";
+  declare content: string;
+  declare createdDate: Date;
+  declare updatedDate: Date;
+}
+
+/* ------------------------------------------------------------------ */
+/* 3️⃣ Sequelize init (unchanged DB schema)                           */
+/* ------------------------------------------------------------------ */
 Message.init(
   {
     id: {
@@ -16,7 +50,7 @@ Message.init(
       allowNull: false,
     },
     role: {
-      type: DataTypes.STRING(20),
+      type: DataTypes.STRING(20), // keeping your original schema
       allowNull: false,
     },
     content: {
@@ -39,5 +73,8 @@ Message.init(
   }
 );
 
+/* ------------------------------------------------------------------ */
+/* 4️⃣ Associations                                                   */
+/* ------------------------------------------------------------------ */
 Message.belongsTo(Chat, { foreignKey: "chatId" });
 Chat.hasMany(Message, { foreignKey: "chatId" });

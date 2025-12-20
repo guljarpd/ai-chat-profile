@@ -8,28 +8,41 @@ import { isProfileRequest } from "@/lib/profileDetector";
 import { chatCompletion } from "@/lib/llm";
 import { updateSummary } from "@/lib/memory";
 
+/* ------------------------------------------------------------------ */
+/* 🔐 Extend request type (THIS FIXES next build) */
+/* ------------------------------------------------------------------ */
+interface AuthenticatedRequest extends NextApiRequest {
+  user: {
+    userId: string;
+    email: string;
+  };
+}
+
 type ChatResponse = {
   chatId: string;
   reply: string;
 };
 
-export default requireAuth(async function handler(req, res) {
+export default requireAuth(async function handler(
+  req: AuthenticatedRequest,
+  res: NextApiResponse<ChatResponse | { error: string }>
+) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
     const { chatId, message } = req.body;
-    const userId = req?.user?.userId; // 🔐 FROM JWT ONLY
+    const userId = req.user.userId; // ✅ fully typed now
 
     if (!message || typeof message !== "string") {
       return res.status(400).json({ error: "message is required" });
     }
 
-    // ------------------------------------------------------------------
-    // 1️⃣ Get-or-create Chat (USER MUST EXIST ALREADY)
-    // ------------------------------------------------------------------
-    let chat = null;
+    /* -------------------------------------------------------------- */
+    /* 1️⃣ Get-or-create Chat (USER MUST EXIST) */
+    /* -------------------------------------------------------------- */
+    let chat: Chat | null =  null;
 
     if (chatId) {
       chat = await Chat.findOne({
@@ -44,18 +57,18 @@ export default requireAuth(async function handler(req, res) {
       });
     }
 
-    // ------------------------------------------------------------------
-    // 2️⃣ Store user message
-    // ------------------------------------------------------------------
+    /* -------------------------------------------------------------- */
+    /* 2️⃣ Store user message */
+    /* -------------------------------------------------------------- */
     await Message.create({
       chatId: chat.id,
       role: "user",
       content: message,
     });
 
-    // ------------------------------------------------------------------
-    // 3️⃣ Fetch recent messages
-    // ------------------------------------------------------------------
+    /* -------------------------------------------------------------- */
+    /* 3️⃣ Fetch recent messages */
+    /* -------------------------------------------------------------- */
     const recentMessages = await Message.findAll({
       where: { chatId: chat.id },
       order: [["createdDate", "DESC"]],
@@ -68,21 +81,21 @@ export default requireAuth(async function handler(req, res) {
 
     let reply = "";
 
-    // ------------------------------------------------------------------
-    // 4️⃣ Profile vs Normal Chat
-    // ------------------------------------------------------------------
+    /* -------------------------------------------------------------- */
+    /* 4️⃣ Profile vs Normal Chat */
+    /* -------------------------------------------------------------- */
     if (isProfileRequest(message)) {
       reply = await chatCompletion([
         {
           role: "system",
           content: `
-            Create a personality-style profile based ONLY on the data below.
+Create a personality-style profile based ONLY on the data below.
 
-            Conversation summary:
-            ${chat.summary || "No summary yet"}
+Conversation summary:
+${chat.summary || "No summary yet"}
 
-            Recent messages:
-            ${formattedMessages.map(m => m.content).join("\n")}
+Recent messages:
+${formattedMessages.map(m => m.content).join("\n")}
           `,
         },
       ]);
@@ -100,18 +113,18 @@ export default requireAuth(async function handler(req, res) {
       ]);
     }
 
-    // ------------------------------------------------------------------
-    // 5️⃣ Store assistant reply
-    // ------------------------------------------------------------------
+    /* -------------------------------------------------------------- */
+    /* 5️⃣ Store assistant reply */
+    /* -------------------------------------------------------------- */
     await Message.create({
       chatId: chat.id,
       role: "assistant",
       content: reply,
     });
 
-    // ------------------------------------------------------------------
-    // 6️⃣ Update summary + memory confidence
-    // ------------------------------------------------------------------
+    /* -------------------------------------------------------------- */
+    /* 6️⃣ Update summary + memory confidence */
+    /* -------------------------------------------------------------- */
     if (recentMessages.length >= 5) {
       const newSummary = await updateSummary(
         chat.summary,
@@ -133,9 +146,9 @@ export default requireAuth(async function handler(req, res) {
       });
     }
 
-    // ------------------------------------------------------------------
-    // 7️⃣ Return response
-    // ------------------------------------------------------------------
+    /* -------------------------------------------------------------- */
+    /* 7️⃣ Return response */
+    /* -------------------------------------------------------------- */
     return res.status(200).json({
       chatId: chat.id,
       reply,
