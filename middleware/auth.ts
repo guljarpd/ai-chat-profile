@@ -2,6 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth/jwt";
 
 export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  // ✅ DO NOT TOUCH API ROUTES
+  if (pathname.startsWith("/api")) {
+    return NextResponse.next();
+  }
+
+  // Only protect /chat
+  if (!pathname.startsWith("/chat")) {
+    return NextResponse.next();
+  }
+
   const token = req.cookies.get("auth_token")?.value;
 
   if (!token) {
@@ -17,5 +29,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/chat"],
+  matcher: ["/chat/:path*"],
 };
