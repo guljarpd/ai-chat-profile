@@ -60,7 +60,7 @@ vi.mock("@/models/Message", () => ({
 /* ================================
    IMPORT HANDLER AFTER MOCKS
 ================================ */
-import handler from "@/pages/api/chat";
+import handler from "@/pages/api/chat/route";
 import httpMocks from "node-mocks-http";
 
 /* ================================

@@ -3,11 +3,13 @@ import { serialize } from "cookie";
 import { User } from "@/models/User";
 import { verifyPassword } from "@/lib/auth/password";
 import { signToken } from "@/lib/auth/jwt";
+import { initDB } from "@/models";
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  await initDB();
   if (req.method !== "POST") {
     return res.status(405).end();
   }

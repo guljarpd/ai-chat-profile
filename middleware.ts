@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
-
-  // Never touch API routes
-  if (pathname.startsWith("/api")) {
-    return NextResponse.next();
-  }
+  const pathname = req.nextUrl.pathname;
 
   // Only protect /chat
   if (!pathname.startsWith("/chat")) {
@@ -15,6 +10,7 @@ export function middleware(req: NextRequest) {
 
   const token = req.cookies.get("auth_token")?.value;
 
+  // ✅ ONLY check existence
   if (!token) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
@@ -23,5 +19,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/chat/:path*"],
+  matcher: ["/chat"],
 };

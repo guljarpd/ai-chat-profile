@@ -7,6 +7,7 @@ import { Message } from "@/models/Message";
 import { isProfileRequest } from "@/lib/profileDetector";
 import { chatCompletion } from "@/lib/llm";
 import { updateSummary } from "@/lib/memory";
+import { initDB } from "@/models";
 
 /* ------------------------------------------------------------------ */
 /* 🔐 Extend request type (THIS FIXES next build) */
@@ -27,6 +28,7 @@ export default requireAuth(async function handler(
   req: AuthenticatedRequest,
   res: NextApiResponse<ChatResponse | { error: string }>
 ) {
+  await initDB();
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
