@@ -1,35 +1,24 @@
-import { NextApiRequest, NextApiResponse } from "next";
-import { serialize } from "cookie";
-import { User } from "@/models/User";
+import type { NextApiRequest, NextApiResponse } from "next";
+import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/auth/password";
 import { signToken } from "@/lib/auth/jwt";
-import { initDB } from "@/models";
+import { serialize } from "cookie";
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  await initDB();
-  if (req.method !== "POST") {
-    return res.status(405).end();
-  }
+  if (req.method !== "POST") return res.status(405).end();
 
   const { email, password } = req.body;
 
-  const user = await User.findOne({ where: { email } });
-  if (!user) {
-    return res.status(401).json({ error: "Invalid credentials" });
-  }
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) return res.status(401).json({ error: "Invalid credentials" });
 
   const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) {
-    return res.status(401).json({ error: "Invalid credentials" });
-  }
+  if (!valid) return res.status(401).json({ error: "Invalid credentials" });
 
-  const token = signToken({
-    userId: user.id,
-    email: user.email,
-  });
+  const token = signToken({ userId: user.id, email: user.email });
 
   res.setHeader(
     "Set-Cookie",
@@ -38,9 +27,9 @@ export default async function handler(
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60, // 1 hour
+      maxAge: 60 * 60,
     })
-  );  
+  );
 
   res.status(200).json({ success: true });
 }

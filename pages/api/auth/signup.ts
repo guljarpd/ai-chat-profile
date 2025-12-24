@@ -1,61 +1,49 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { serialize } from "cookie";
-import { User } from "@/models/User";
+import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth/password";
 import { signToken } from "@/lib/auth/jwt";
-import { initDB } from "@/models";
+import { serialize } from "cookie";
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (req.method !== "POST") {
-    return res.status(405).end();
+  if (req.method !== "POST") return res.status(405).end();
+
+  const { email, password, firstName, lastName } = req.body;
+
+  if (!email || !password || !firstName) {
+    return res.status(400).json({ error: "Missing fields" });
   }
 
-  try {
-    await initDB();
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    return res.status(409).json({ error: "User already exists" });
+  }
 
-    const { email, password, firstName, lastName } = req.body;
+  const passwordHash = await hashPassword(password);
 
-    if (!email || !password || !firstName) {
-      return res.status(400).json({ error: "Missing fields" });
-    }
-
-    const existing = await User.findOne({ where: { email } });
-    if (existing) {
-      return res.status(409).json({ error: "User already exists" });
-    }
-
-    const passwordHash = await hashPassword(password);
-
-    const user = await User.create({
+  const user = await prisma.user.create({
+    data: {
       email,
       firstName,
       lastName,
       passwordHash,
-      isActive: true,
-    });
+    },
+  });
 
-    const token = signToken({
-      userId: user.id,
-      email: user.email,
-    });
+  const token = signToken({ userId: user.id, email: user.email });
 
-    res.setHeader(
-      "Set-Cookie",
-      serialize("auth_token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60,
-      })
-    );
+  res.setHeader(
+    "Set-Cookie",
+    serialize("auth_token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60,
+    })
+  );
 
-    return res.status(200).json({ success: true });
-  } catch (err) {
-    console.error("Signup error:", err);
-    return res.status(500).json({ error: "Internal server error" });
-  }
+  res.status(200).json({ success: true });
 }

@@ -2,15 +2,13 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { v4 as uuidv4 } from "uuid";
 
 import { requireAuth } from "@/lib/auth/requireAuth";
-import { Chat } from "@/models/Chat";
-import { Message } from "@/models/Message";
+import { prisma } from "@/lib/prisma";
 import { isProfileRequest } from "@/lib/profileDetector";
 import { chatCompletion } from "@/lib/llm";
 import { updateSummary } from "@/lib/memory";
-import { initDB } from "@/models";
 
 /* ------------------------------------------------------------------ */
-/* 🔐 Extend request type (THIS FIXES next build) */
+/* 🔐 Authenticated request type                                      */
 /* ------------------------------------------------------------------ */
 interface AuthenticatedRequest extends NextApiRequest {
   user: {
@@ -28,64 +26,65 @@ export default requireAuth(async function handler(
   req: AuthenticatedRequest,
   res: NextApiResponse<ChatResponse | { error: string }>
 ) {
-  await initDB();
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
     const { chatId, message } = req.body;
-    const userId = req.user.userId; // ✅ fully typed now
+    const userId = req.user.userId;
 
     if (!message || typeof message !== "string") {
       return res.status(400).json({ error: "message is required" });
     }
 
     /* -------------------------------------------------------------- */
-    /* 1️⃣ Get-or-create Chat (USER MUST EXIST) */
+    /* 1️⃣ Get or create chat                                         */
     /* -------------------------------------------------------------- */
-    let chat: Chat | null =  null;
+    const chat = chatId
+      ? await prisma.chat.findFirst({
+          where: { id: chatId, userId },
+        })
+      : null;
 
-    if (chatId) {
-      chat = await Chat.findOne({
-        where: { id: chatId, userId },
-      });
-    }
-
-    if (!chat) {
-      chat = await Chat.create({
-        id: chatId || uuidv4(),
-        userId,
-      });
-    }
+    const activeChat =
+      chat ??
+      (await prisma.chat.create({
+        data: {
+          id: chatId || uuidv4(),
+          userId,
+        },
+      }));
 
     /* -------------------------------------------------------------- */
-    /* 2️⃣ Store user message */
+    /* 2️⃣ Store user message                                         */
     /* -------------------------------------------------------------- */
-    await Message.create({
-      chatId: chat.id,
-      role: "user",
-      content: message,
+    await prisma.message.create({
+      data: {
+        chatId: activeChat.id,
+        role: "user",
+        content: message,
+      },
     });
 
     /* -------------------------------------------------------------- */
-    /* 3️⃣ Fetch recent messages */
+    /* 3️⃣ Fetch recent messages                                      */
     /* -------------------------------------------------------------- */
-    const recentMessages = await Message.findAll({
-      where: { chatId: chat.id },
-      order: [["createdDate", "DESC"]],
-      limit: 10,
+    const recentMessages = await prisma.message.findMany({
+      where: { chatId: activeChat.id },
+      orderBy: { createdDate: "desc" },
+      take: 10,
     });
 
-    const formattedMessages = recentMessages
+    const formattedMessages = [...recentMessages]
       .reverse()
       .map(m => ({ role: m.role, content: m.content }));
 
+    /* -------------------------------------------------------------- */
+    /* 4️⃣ Generate reply                                             */
+    /* -------------------------------------------------------------- */
     let reply = "";
 
-    /* -------------------------------------------------------------- */
-    /* 4️⃣ Profile vs Normal Chat */
-    /* -------------------------------------------------------------- */
     if (isProfileRequest(message)) {
       reply = await chatCompletion([
         {
@@ -94,7 +93,7 @@ export default requireAuth(async function handler(
 Create a personality-style profile based ONLY on the data below.
 
 Conversation summary:
-${chat.summary || "No summary yet"}
+${activeChat.summary || "No summary yet"}
 
 Recent messages:
 ${formattedMessages.map(m => m.content).join("\n")}
@@ -103,38 +102,34 @@ ${formattedMessages.map(m => m.content).join("\n")}
       ]);
     } else {
       reply = await chatCompletion([
-        {
-          role: "system",
-          content: chat.summary || "",
-        },
+        { role: "system", content: activeChat.summary || "" },
         ...formattedMessages,
-        {
-          role: "user",
-          content: message,
-        },
+        { role: "user", content: message },
       ]);
     }
 
     /* -------------------------------------------------------------- */
-    /* 5️⃣ Store assistant reply */
+    /* 5️⃣ Store assistant reply                                      */
     /* -------------------------------------------------------------- */
-    await Message.create({
-      chatId: chat.id,
-      role: "assistant",
-      content: reply,
+    await prisma.message.create({
+      data: {
+        chatId: activeChat.id,
+        role: "assistant",
+        content: reply,
+      },
     });
 
     /* -------------------------------------------------------------- */
-    /* 6️⃣ Update summary + memory confidence */
+    /* 6️⃣ Update summary + confidence                                */
     /* -------------------------------------------------------------- */
     if (recentMessages.length >= 5) {
       const newSummary = await updateSummary(
-        chat.summary,
+        activeChat.summary,
         recentMessages.map(m => m.content)
       );
 
-      const totalMessages = await Message.count({
-        where: { chatId: chat.id },
+      const totalMessages = await prisma.message.count({
+        where: { chatId: activeChat.id },
       });
 
       const memoryConfidence = Math.min(
@@ -142,17 +137,20 @@ ${formattedMessages.map(m => m.content).join("\n")}
         totalMessages / 20 + (newSummary?.length || 0) / 1000
       );
 
-      await chat.update({
-        summary: newSummary,
-        memoryConfidence,
+      await prisma.chat.update({
+        where: { id: activeChat.id },
+        data: {
+          summary: newSummary,
+          memoryConfidence,
+        },
       });
     }
 
     /* -------------------------------------------------------------- */
-    /* 7️⃣ Return response */
+    /* 7️⃣ Respond                                                    */
     /* -------------------------------------------------------------- */
     return res.status(200).json({
-      chatId: chat.id,
+      chatId: activeChat.id,
       reply,
     });
   } catch (err) {
